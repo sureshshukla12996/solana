@@ -74,12 +74,26 @@ export class TokenTracker {
     try {
       if (fs.existsSync(this.filePath)) {
         const data = fs.readFileSync(this.filePath, 'utf-8');
-        const tokens = JSON.parse(data) as TrackedToken[];
+        const parsed = JSON.parse(data);
         
-        // Convert array to Map
-        this.sentTokens = new Map(
-          tokens.map(t => [t.address, t.timestamp])
-        );
+        // Handle legacy format (array of strings) and migrate to new format
+        if (Array.isArray(parsed)) {
+          if (parsed.length > 0 && typeof parsed[0] === 'string') {
+            // Legacy format: array of strings
+            this.logger.info('Migrating from legacy token storage format...');
+            const now = Date.now();
+            this.sentTokens = new Map(
+              parsed.map((address: string) => [address, now])
+            );
+            this.saveToFile(); // Save in new format
+            this.logger.info(`Migrated ${this.sentTokens.size} tokens to new format`);
+          } else {
+            // New format: array of TrackedToken objects
+            this.sentTokens = new Map(
+              (parsed as TrackedToken[]).map(t => [t.address, t.timestamp])
+            );
+          }
+        }
         
         this.logger.info(`Loaded ${this.sentTokens.size} previously sent tokens`);
       } else {

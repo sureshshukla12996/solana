@@ -6,6 +6,7 @@ export class TelegramService {
   private chatId: string;
   private logger: Logger;
   private minLiquidityUsd: number;
+  private readonly LIQUIDITY_WARNING_MULTIPLIER = 2; // Show warning when liquidity is below 2x minimum
 
   constructor(botToken: string, chatId: string, logger: Logger, minLiquidityUsd: number = 500) {
     this.bot = new TelegramBot(botToken, { polling: false });
@@ -61,10 +62,11 @@ export class TelegramService {
     // Add liquidity information with warning for low liquidity
     if (pair.liquidity?.usd) {
       const liquidityUsd = pair.liquidity.usd;
-      const liquidityWarning = liquidityUsd < this.minLiquidityUsd * 2 ? ' ⚠️' : '';
+      const warningThreshold = this.minLiquidityUsd * this.LIQUIDITY_WARNING_MULTIPLIER;
+      const liquidityWarning = liquidityUsd < warningThreshold ? ' ⚠️' : '';
       lines.push(`<b>💧 Liquidity:</b> $${this.formatNumber(liquidityUsd)}${liquidityWarning}`);
       
-      if (liquidityUsd < this.minLiquidityUsd * 2) {
+      if (liquidityUsd < warningThreshold) {
         lines.push(`<i>⚠️ Low liquidity - Trade with caution!</i>`);
       }
     }
