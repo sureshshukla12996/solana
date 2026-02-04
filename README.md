@@ -4,12 +4,15 @@ A Node.js bot that monitors DexScreener for newly launched Solana tokens and aut
 
 ## Features
 
-- 🔍 **Real-time Monitoring**: Continuously monitors DexScreener for new Solana token launches
+- 🔍 **Ultra-Fast Monitoring**: Checks DexScreener every 20 seconds for newly launched tokens
+- ⏱️ **Strict Time Filter**: Only shows tokens launched in the last 60 seconds (1 minute)
+- 📦 **Batch Sending**: Sends up to 10 tokens at once when multiple new launches are detected
 - 📱 **Telegram Notifications**: Sends formatted alerts with token details to your Telegram group
-- 🚫 **Duplicate Prevention**: Tracks sent tokens to avoid duplicate notifications
-- 🛡️ **Error Handling**: Robust error handling and retry logic for API failures
-- 📊 **Comprehensive Details**: Includes token name, symbol, contract address, liquidity, price, and more
+- 🚫 **Duplicate Prevention**: Tracks sent tokens to avoid duplicate notifications (auto-cleans after 2 minutes)
+- 🛡️ **Error Handling**: Continues batch sending even if individual tokens fail
+- 📊 **Comprehensive Details**: Includes token name, symbol, contract address, liquidity, price, and launch time in seconds
 - ⚙️ **Configurable**: Easy configuration via environment variables
+- 📋 **Enhanced Logging**: Detailed processing information showing filters, batches, and status
 
 ## Prerequisites
 
@@ -42,7 +45,11 @@ A Node.js bot that monitors DexScreener for newly launched Solana tokens and aut
    ```env
    TELEGRAM_BOT_TOKEN=your_bot_token_here
    TELEGRAM_CHAT_ID=your_chat_id_here
-   CHECK_INTERVAL=60
+   CHECK_INTERVAL=20
+   MAX_TOKEN_AGE_SECONDS=60
+   MAX_TOKENS_PER_BATCH=10
+   MIN_LIQUIDITY_USD=50
+   DEBUG_MODE=true
    ```
 
 ## Getting Telegram Credentials
@@ -102,27 +109,41 @@ npm run dev
 
 Once started, the bot will:
 1. Connect to Telegram and verify credentials
-2. Load previously sent tokens (if any)
-3. Check DexScreener every 60 seconds (or your configured interval)
-4. Send formatted messages to your Telegram group when new tokens are detected
+2. Start monitoring DexScreener every 20 seconds (or your configured interval)
+3. Filter tokens strictly to only those launched within the last 60 seconds
+4. Send up to 10 new tokens per check cycle
+5. Display detailed logging showing filtering and batch processing
 
 **Example notification:**
 ```
-🚀 New Solana Token Detected!
+🚀 NEW TOKEN #1
 
 Token: Example Token (EXT)
-Contract: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU
+Contract: 7xK...asU
 
-Chain: Solana
-DEX: Raydium
-Price: $0.00001234
-Liquidity: $12.5K
-FDV: $1.2M
-Created: Tue, 04 Feb 2025 10:30:00 GMT
+⚡ Launched 15 seconds ago
+💰 $0.0001 | 💧 $250
+⛓️ Solana | Raydium
+🔗 DexScreener | Solscan
+```
 
-🔗 Links:
-📊 DexScreener
-🔍 Solscan
+**Example log output:**
+```
+[07:30:00] 🔍 Checking DexScreener...
+[07:30:00] 📊 Found 50 total Solana pairs
+[07:30:00] ⏱️  After time filter: 6 tokens within last 60 seconds
+[07:30:00] 💧 After liquidity filter: 5 tokens meet liquidity requirement ($50+)
+[07:30:00] 📦 Returning 5 tokens (max batch size: 10)
+[07:30:00] Already sent: 0, New: 5
+[07:30:00] ✅ Sending 5 token(s) to Telegram
+[07:30:00]   ✅ Token 1: TokenA (15s old) - SENT
+[07:30:01]   ✅ Token 2: TokenB (25s old) - SENT
+[07:30:03]   ✅ Token 3: TokenC (40s old) - SENT
+[07:30:04]   ✅ Token 4: TokenD (50s old) - SENT
+[07:30:06]   ✅ Token 5: TokenE (58s old) - SENT
+[07:30:06] 📊 Batch complete: 5 sent, 0 failed
+[07:30:06] Total tokens tracked: 5
+[07:30:06] Next check in 20 seconds.
 ```
 
 ## Configuration Options
@@ -131,7 +152,11 @@ Created: Tue, 04 Feb 2025 10:30:00 GMT
 |----------|-------------|---------|----------|
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather | - | Yes |
 | `TELEGRAM_CHAT_ID` | Target chat/group ID for notifications | - | Yes |
-| `CHECK_INTERVAL` | How often to check for new tokens (seconds) | 60 | No |
+| `CHECK_INTERVAL` | How often to check for new tokens (seconds) | 20 | No |
+| `MAX_TOKEN_AGE_SECONDS` | Maximum age of tokens to report (seconds) | 60 | No |
+| `MAX_TOKENS_PER_BATCH` | Maximum number of tokens to send per batch | 10 | No |
+| `MIN_LIQUIDITY_USD` | Minimum liquidity in USD to filter tokens | 50 | No |
+| `DEBUG_MODE` | Enable detailed logging (true/false) | true | No |
 
 ## Project Structure
 
@@ -154,19 +179,23 @@ solana/
 
 ## How It Works
 
-1. **Monitoring**: The bot polls the DexScreener API every configured interval (default: 60 seconds)
-2. **Filtering**: Filters for Solana tokens that were created in the last 5 minutes
-3. **Duplicate Check**: Checks if the token has already been sent using the token tracker
-4. **Notification**: Formats and sends a rich notification to your Telegram group
-5. **Tracking**: Records the token address to prevent duplicate notifications
-6. **Persistence**: Saves sent token addresses to `sent-tokens.json` for persistence across restarts
+1. **Ultra-Fast Monitoring**: The bot polls the DexScreener API every 20 seconds (configurable)
+2. **Strict Time Filtering**: Only shows tokens launched within the last 60 seconds
+3. **Liquidity Filtering**: Filters tokens by minimum liquidity threshold (default: $50 USD)
+4. **Batch Processing**: Collects up to 10 qualifying tokens per check
+5. **Duplicate Check**: Prevents re-sending tokens already sent (tracks for 2 minutes)
+6. **Batch Notification**: Sends all new tokens with 1.5-second delays between messages to respect rate limits
+7. **Error Resilience**: Continues sending remaining tokens even if individual sends fail
+8. **Auto Cleanup**: Automatically removes tokens from tracking after 2 minutes
 
 ## Error Handling
 
 - **API Failures**: Automatically retries on next interval if API calls fail
-- **Telegram Errors**: Logs errors and continues monitoring
-- **Rate Limiting**: Adds delays between messages to respect Telegram's rate limits
+- **Telegram Errors**: Logs individual token send failures and continues with remaining batch
+- **Rate Limiting**: Adds 1.5-second delays between messages to respect Telegram's rate limits (~20 messages/minute)
+- **Batch Resilience**: If one token fails to send, the bot continues with the next tokens in the batch
 - **Graceful Shutdown**: Handles SIGINT and SIGTERM signals for clean shutdowns
+- **Auto Cleanup**: Removes old tokens from tracking automatically every 30 seconds
 
 ## Logging
 

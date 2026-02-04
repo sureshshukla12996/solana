@@ -2,19 +2,28 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './types';
 
+interface TrackedToken {
+  address: string;
+  timestamp: number;
+}
+
 /**
- * Simple file-based storage for tracking sent token addresses
+ * Simple memory-based storage for tracking sent token addresses with timestamps
+ * Automatically cleans up tokens older than 2 minutes
  */
 export class TokenTracker {
-  private sentTokens: Set<string>;
-  private readonly filePath: string;
+  private sentTokens: Map<string, number>; // address -> timestamp
   private readonly logger: Logger;
+  private readonly cleanupIntervalMs = 30000; // Clean up every 30 seconds
+  private readonly maxAgeMs = 120000; // 2 minutes
+  private cleanupTimer?: NodeJS.Timeout;
 
-  constructor(logger: Logger, filePath: string = 'sent-tokens.json') {
+  constructor(logger: Logger) {
     this.logger = logger;
-    this.filePath = path.resolve(process.cwd(), filePath);
-    this.sentTokens = new Set();
-    this.loadFromFile();
+    this.sentTokens = new Map();
+    
+    // Start automatic cleanup
+    this.startCleanup();
   }
 
   /**
@@ -28,8 +37,7 @@ export class TokenTracker {
    * Mark a token as sent
    */
   markAsSent(tokenAddress: string): void {
-    this.sentTokens.add(tokenAddress);
-    this.saveToFile();
+    this.sentTokens.set(tokenAddress, Date.now());
   }
 
   /**
@@ -40,33 +48,41 @@ export class TokenTracker {
   }
 
   /**
-   * Load sent tokens from file
+   * Start automatic cleanup of old tokens
    */
-  private loadFromFile(): void {
-    try {
-      if (fs.existsSync(this.filePath)) {
-        const data = fs.readFileSync(this.filePath, 'utf-8');
-        const tokens = JSON.parse(data) as string[];
-        this.sentTokens = new Set(tokens);
-        this.logger.info(`Loaded ${this.sentTokens.size} previously sent tokens`);
-      } else {
-        this.logger.info('No previous token history found, starting fresh');
+  private startCleanup(): void {
+    this.cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, this.cleanupIntervalMs);
+  }
+
+  /**
+   * Clean up tokens older than 2 minutes
+   */
+  private cleanup(): void {
+    const now = Date.now();
+    const cutoff = now - this.maxAgeMs;
+    let removedCount = 0;
+
+    for (const [address, timestamp] of this.sentTokens.entries()) {
+      if (timestamp < cutoff) {
+        this.sentTokens.delete(address);
+        removedCount++;
       }
-    } catch (error) {
-      this.logger.error('Error loading sent tokens from file:', error);
-      this.sentTokens = new Set();
+    }
+
+    if (removedCount > 0) {
+      this.logger.info(`🧹 Cleaned up ${removedCount} old token(s) from tracking. Current: ${this.sentTokens.size}`);
     }
   }
 
   /**
-   * Save sent tokens to file
+   * Stop the cleanup timer
    */
-  private saveToFile(): void {
-    try {
-      const tokens = Array.from(this.sentTokens);
-      fs.writeFileSync(this.filePath, JSON.stringify(tokens, null, 2), 'utf-8');
-    } catch (error) {
-      this.logger.error('Error saving sent tokens to file:', error);
+  stop(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
     }
   }
 
@@ -75,7 +91,6 @@ export class TokenTracker {
    */
   clear(): void {
     this.sentTokens.clear();
-    this.saveToFile();
     this.logger.info('Cleared all sent tokens');
   }
 }

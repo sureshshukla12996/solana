@@ -15,19 +15,22 @@ export class TelegramService {
   /**
    * Format and send token information to Telegram
    */
-  async sendTokenAlert(pair: TokenPair): Promise<boolean> {
+  async sendTokenAlert(pair: TokenPair, index?: number): Promise<boolean> {
     try {
-      const message = this.formatTokenMessage(pair);
+      const message = this.formatTokenMessage(pair, index);
       
       await this.bot.sendMessage(this.chatId, message, {
         parse_mode: 'HTML',
         disable_web_page_preview: false,
       });
 
-      this.logger.info(`✅ Sent alert for token: ${pair.baseToken.symbol}`);
+      const tokenAge = pair.pairCreatedAt 
+        ? Math.floor((Date.now() - pair.pairCreatedAt * 1000) / 1000)
+        : 'unknown';
+      this.logger.info(`  ✅ Token ${index !== undefined ? index + 1 : ''}: ${pair.baseToken.symbol} (${tokenAge}s old) - SENT`);
       return true;
     } catch (error) {
-      this.logger.error(`Failed to send Telegram message:`, error);
+      this.logger.error(`  ❌ Failed to send alert for ${pair.baseToken.symbol}:`, error);
       return false;
     }
   }
@@ -35,46 +38,51 @@ export class TelegramService {
   /**
    * Format token information into a readable message
    */
-  private formatTokenMessage(pair: TokenPair): string {
-    const lines: string[] = [
-      '🚀 <b>New Solana Token Detected!</b>',
-      '',
-      `<b>Token:</b> ${this.escapeHtml(pair.baseToken.name)} (${this.escapeHtml(pair.baseToken.symbol)})`,
-      `<b>Contract:</b> <code>${pair.baseToken.address}</code>`,
-      '',
-      `<b>Chain:</b> Solana`,
-      `<b>DEX:</b> ${this.capitalizeFirst(pair.dexId)}`,
-    ];
-
-    // Add price information if available
-    if (pair.priceUsd) {
-      lines.push(`<b>Price:</b> $${this.formatNumber(parseFloat(pair.priceUsd))}`);
+  private formatTokenMessage(pair: TokenPair, index?: number): string {
+    const lines: string[] = [];
+    
+    // Add header with index if provided
+    if (index !== undefined) {
+      lines.push(`🚀 <b>NEW TOKEN #${index + 1}</b>`);
+    } else {
+      lines.push('🚀 <b>NEW TOKEN</b>');
     }
+    
+    lines.push('');
+    lines.push(`<b>Token:</b> ${this.escapeHtml(pair.baseToken.name)} (${this.escapeHtml(pair.baseToken.symbol)})`);
+    
+    // Shorten contract address for better readability
+    const shortAddress = this.shortenAddress(pair.baseToken.address);
+    lines.push(`<b>Contract:</b> <code>${shortAddress}</code>`);
+    lines.push('');
 
-    // Add liquidity information if available
-    if (pair.liquidity?.usd) {
-      lines.push(`<b>Liquidity:</b> $${this.formatNumber(pair.liquidity.usd)}`);
-    }
-
-    // Add FDV if available
-    if (pair.fdv) {
-      lines.push(`<b>FDV:</b> $${this.formatNumber(pair.fdv)}`);
-    }
-
-    // Add creation time with exact seconds display
+    // Add launch time - ALWAYS in seconds
     if (pair.pairCreatedAt) {
       const tokenCreatedAt = pair.pairCreatedAt * 1000;
       const ageSeconds = Math.floor((Date.now() - tokenCreatedAt) / 1000);
-      const timeAgo = this.formatTimeAgo(ageSeconds);
-      lines.push(`<b>Launched:</b> ${timeAgo}`);
+      lines.push(`⚡ <b>Launched ${ageSeconds} second${ageSeconds !== 1 ? 's' : ''} ago</b>`);
     }
 
+    // Add price and liquidity in a compact format
+    const priceStr = pair.priceUsd ? `$${this.formatNumber(parseFloat(pair.priceUsd))}` : 'N/A';
+    const liqStr = pair.liquidity?.usd ? `$${this.formatNumber(pair.liquidity.usd)}` : 'N/A';
+    lines.push(`💰 ${priceStr} | 💧 ${liqStr}`);
+
+    // Add chain and DEX info
+    lines.push(`⛓️ Solana | ${this.capitalizeFirst(pair.dexId)}`);
+
     lines.push('');
-    lines.push(`<b>🔗 Links:</b>`);
-    lines.push(`📊 <a href="${pair.url}">DexScreener</a>`);
-    lines.push(`🔍 <a href="https://solscan.io/token/${pair.baseToken.address}">Solscan</a>`);
+    lines.push(`🔗 <a href="${pair.url}">DexScreener</a> | <a href="https://solscan.io/token/${pair.baseToken.address}">Solscan</a>`);
 
     return lines.join('\n');
+  }
+
+  /**
+   * Shorten address for display (e.g., 7xK...abc)
+   */
+  private shortenAddress(address: string): string {
+    if (address.length <= 10) return address;
+    return `${address.substring(0, 3)}...${address.substring(address.length - 3)}`;
   }
 
   /**
@@ -96,24 +104,6 @@ export class TelegramService {
    */
   private capitalizeFirst(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1);
-  }
-
-  /**
-   * Format time ago in exact seconds
-   */
-  private formatTimeAgo(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
-    } else if (seconds < 120) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
-    } else {
-      // Should not happen with 2-minute filter, but just in case
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
-    }
   }
 
   /**

@@ -10,6 +10,7 @@ class SolanaTokenBot {
   private telegram: TelegramService;
   private tokenTracker: TokenTracker;
   private checkInterval: number;
+  private maxTokensPerBatch: number;
   private isRunning: boolean = false;
   private intervalId?: NodeJS.Timeout;
 
@@ -31,9 +32,10 @@ class SolanaTokenBot {
     );
     this.tokenTracker = new TokenTracker(logger);
     this.checkInterval = config.checkInterval * 1000; // Convert to milliseconds
+    this.maxTokensPerBatch = config.maxTokensPerBatch;
 
     logger.info(`Bot initialized with ${config.checkInterval}s check interval`);
-    logger.info(`Max token age: ${config.maxTokenAgeSeconds}s, Min liquidity: $${config.minLiquidityUsd}, Debug mode: ${config.debugMode}`);
+    logger.info(`Max token age: ${config.maxTokenAgeSeconds}s, Max batch: ${config.maxTokensPerBatch}, Min liquidity: $${config.minLiquidityUsd}, Debug: ${config.debugMode}`);
   }
 
   /**
@@ -82,6 +84,9 @@ class SolanaTokenBot {
       this.intervalId = undefined;
     }
 
+    // Stop token tracker cleanup
+    this.tokenTracker.stop();
+
     logger.info('✅ Bot stopped successfully');
   }
 
@@ -90,46 +95,66 @@ class SolanaTokenBot {
    */
   private async checkForNewTokens(): Promise<void> {
     try {
-      logger.info('🔍 Checking for new tokens...');
+      const timestamp = new Date().toLocaleTimeString();
+      logger.info(`\n[${timestamp}] 🔍 Checking DexScreener...`);
 
-      // Fetch new pairs from DexScreener
-      const pairs = await this.dexScreener.fetchNewSolanaPairs();
+      // Fetch new pairs from DexScreener (already filtered and limited to maxTokensPerBatch)
+      const pairs = await this.dexScreener.fetchNewSolanaPairs(this.maxTokensPerBatch);
 
       if (pairs.length === 0) {
-        logger.info('No new tokens found');
+        logger.info(`[${timestamp}] No new tokens found within criteria`);
+        logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
         return;
       }
 
-      // Process each pair
-      let newTokensFound = 0;
-      for (const pair of pairs) {
+      // Filter out already sent tokens
+      const newPairs = pairs.filter(pair => !this.tokenTracker.hasSent(pair.baseToken.address));
+      const alreadySentCount = pairs.length - newPairs.length;
+
+      logger.info(`[${timestamp}] Already sent: ${alreadySentCount}, New: ${newPairs.length}`);
+
+      if (newPairs.length === 0) {
+        logger.info(`[${timestamp}] No new tokens to report`);
+        logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
+        return;
+      }
+
+      // Send batch of tokens
+      logger.info(`[${timestamp}] ✅ Sending ${newPairs.length} token(s) to Telegram`);
+
+      let sentCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < newPairs.length; i++) {
+        const pair = newPairs[i];
         const tokenAddress = pair.baseToken.address;
 
-        // Check if we've already sent this token
-        if (this.tokenTracker.hasSent(tokenAddress)) {
-          continue;
-        }
+        try {
+          // Send alert to Telegram with index
+          const sent = await this.telegram.sendTokenAlert(pair, i);
 
-        // Send alert to Telegram
-        const sent = await this.telegram.sendTokenAlert(pair);
+          if (sent) {
+            // Mark as sent
+            this.tokenTracker.markAsSent(tokenAddress);
+            sentCount++;
 
-        if (sent) {
-          // Mark as sent
-          this.tokenTracker.markAsSent(tokenAddress);
-          newTokensFound++;
-
-          // Add a small delay between messages to avoid rate limiting
-          await this.sleep(1000);
+            // Add delay between messages to avoid rate limiting (1-2 seconds)
+            if (i < newPairs.length - 1) {
+              await this.sleep(1500);
+            }
+          } else {
+            failedCount++;
+          }
+        } catch (error) {
+          logger.error(`  ❌ Error sending token ${i + 1}/${newPairs.length}:`, error);
+          failedCount++;
+          // Continue with next token even if this one fails
         }
       }
 
-      if (newTokensFound > 0) {
-        logger.info(`✨ Found and sent ${newTokensFound} new token(s)`);
-      } else {
-        logger.info('No new tokens to report');
-      }
-
-      logger.info(`Total tokens tracked: ${this.tokenTracker.getSentCount()}`);
+      logger.info(`[${timestamp}] 📊 Batch complete: ${sentCount} sent, ${failedCount} failed`);
+      logger.info(`[${timestamp}] Total tokens tracked: ${this.tokenTracker.getSentCount()}`);
+      logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
     } catch (error) {
       logger.error('Error checking for new tokens:', error);
     }
