@@ -18,7 +18,12 @@ class SolanaTokenBot {
     const config = loadConfig();
     
     // Initialize services
-    this.dexScreener = new DexScreenerService(logger);
+    this.dexScreener = new DexScreenerService(
+      logger, 
+      config.maxTokenAgeSeconds, 
+      config.minLiquidityUsd, 
+      config.debugMode
+    );
     this.telegram = new TelegramService(
       config.telegramBotToken,
       config.telegramChatId,
@@ -28,6 +33,7 @@ class SolanaTokenBot {
     this.checkInterval = config.checkInterval * 1000; // Convert to milliseconds
 
     logger.info(`Bot initialized with ${config.checkInterval}s check interval`);
+    logger.info(`Max token age: ${config.maxTokenAgeSeconds}s, Min liquidity: $${config.minLiquidityUsd}, Debug mode: ${config.debugMode}`);
   }
 
   /**

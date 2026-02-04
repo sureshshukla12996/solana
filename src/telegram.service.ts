@@ -61,10 +61,12 @@ export class TelegramService {
       lines.push(`<b>FDV:</b> $${this.formatNumber(pair.fdv)}`);
     }
 
-    // Add creation time if available
+    // Add creation time with exact seconds display
     if (pair.pairCreatedAt) {
-      const createdDate = new Date(pair.pairCreatedAt * 1000);
-      lines.push(`<b>Created:</b> ${createdDate.toUTCString()}`);
+      const tokenCreatedAt = pair.pairCreatedAt * 1000;
+      const ageSeconds = Math.floor((Date.now() - tokenCreatedAt) / 1000);
+      const timeAgo = this.formatTimeAgo(ageSeconds);
+      lines.push(`<b>Launched:</b> ${timeAgo}`);
     }
 
     lines.push('');
@@ -94,6 +96,24 @@ export class TelegramService {
    */
   private capitalizeFirst(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+
+  /**
+   * Format time ago in exact seconds
+   */
+  private formatTimeAgo(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
+    } else if (seconds < 120) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes} minute ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
+    } else {
+      // Should not happen with 2-minute filter, but just in case
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
+    }
   }
 
   /**

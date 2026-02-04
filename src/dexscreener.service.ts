@@ -5,9 +5,15 @@ export class DexScreenerService {
   private readonly api: AxiosInstance;
   private readonly logger: Logger;
   private readonly baseUrl = 'https://api.dexscreener.com/latest/dex';
+  private readonly maxTokenAgeSeconds: number;
+  private readonly minLiquidityUsd: number;
+  private readonly debugMode: boolean;
 
-  constructor(logger: Logger) {
+  constructor(logger: Logger, maxTokenAgeSeconds: number, minLiquidityUsd: number, debugMode: boolean) {
     this.logger = logger;
+    this.maxTokenAgeSeconds = maxTokenAgeSeconds;
+    this.minLiquidityUsd = minLiquidityUsd;
+    this.debugMode = debugMode;
     this.api = axios.create({
       baseURL: this.baseUrl,
       timeout: 30000,
@@ -40,14 +46,36 @@ export class DexScreenerService {
         .filter(pair => pair.pairCreatedAt) // Only pairs with creation timestamp
         .sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0)); // Newest first
 
-      // Get pairs created in the last 5 minutes to catch new launches
-      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-      const recentPairs = solanaPairs.filter(
-        pair => (pair.pairCreatedAt || 0) * 1000 >= fiveMinutesAgo
-      );
+      const totalPairs = solanaPairs.length;
 
-      this.logger.info(`Fetched ${recentPairs.length} recent Solana pairs`);
-      return recentPairs;
+      // Get pairs created within MAX_TOKEN_AGE_SECONDS (ultra-strict time filtering)
+      const maxAgeMs = this.maxTokenAgeSeconds * 1000;
+      const cutoffTime = Date.now() - maxAgeMs;
+      const recentPairs = solanaPairs.filter(pair => {
+        const tokenCreatedAt = (pair.pairCreatedAt || 0) * 1000;
+        const tokenAgeSeconds = (Date.now() - tokenCreatedAt) / 1000;
+        
+        if (this.debugMode) {
+          this.logger.info(`Token ${pair.baseToken.symbol}: created ${tokenAgeSeconds.toFixed(0)}s ago`);
+        }
+        
+        return tokenCreatedAt >= cutoffTime;
+      });
+
+      // Filter by minimum liquidity
+      const liquidPairs = recentPairs.filter(pair => {
+        const hasLiquidity = pair.liquidity?.usd !== undefined && pair.liquidity.usd >= this.minLiquidityUsd;
+        
+        if (this.debugMode && !hasLiquidity) {
+          this.logger.info(`Token ${pair.baseToken.symbol}: filtered out due to low liquidity ($${pair.liquidity?.usd || 0})`);
+        }
+        
+        return hasLiquidity;
+      });
+
+      this.logger.info(`Found ${totalPairs} tokens, ${recentPairs.length} are within last ${this.maxTokenAgeSeconds} seconds, ${liquidPairs.length} meet liquidity requirement ($${this.minLiquidityUsd}+)`);
+      
+      return liquidPairs;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.error(
