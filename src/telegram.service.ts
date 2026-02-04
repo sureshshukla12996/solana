@@ -107,7 +107,7 @@ export class TelegramService {
     } else if (seconds < 120) {
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
-      return `${minutes} minute ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
+      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
     } else {
       // Should not happen with 2-minute filter, but just in case
       const minutes = Math.floor(seconds / 60);

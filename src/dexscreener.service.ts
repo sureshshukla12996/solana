@@ -54,12 +54,13 @@ export class DexScreenerService {
       const recentPairs = solanaPairs.filter(pair => {
         const tokenCreatedAt = (pair.pairCreatedAt || 0) * 1000;
         const tokenAgeSeconds = (Date.now() - tokenCreatedAt) / 1000;
+        const isRecent = tokenCreatedAt >= cutoffTime;
         
         if (this.debugMode) {
-          this.logger.info(`Token ${pair.baseToken.symbol}: created ${tokenAgeSeconds.toFixed(0)}s ago`);
+          this.logger.info(`Token ${pair.baseToken.symbol}: created ${tokenAgeSeconds.toFixed(0)}s ago - ${isRecent ? 'PASS' : 'FILTERED'}`);
         }
         
-        return tokenCreatedAt >= cutoffTime;
+        return isRecent;
       });
 
       // Filter by minimum liquidity
