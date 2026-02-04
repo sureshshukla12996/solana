@@ -29,6 +29,9 @@ export class DexScreenerService {
    */
   async fetchNewSolanaPairs(): Promise<TokenPair[]> {
     try {
+      const currentTime = new Date().toISOString().replace('T', ' ').split('.')[0];
+      this.logger.info(`[INFO] Checking DexScreener at ${currentTime}`);
+      
       // DexScreener API endpoint for new pairs on Solana
       // We use the search endpoint to get recently added tokens
       const response = await this.api.get<DexScreenerResponse>(
@@ -47,17 +50,33 @@ export class DexScreenerService {
         .sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0)); // Newest first
 
       const totalPairs = solanaPairs.length;
+      
+      // Process only top 10 newest tokens to save processing time
+      const topNewest = solanaPairs.slice(0, 10);
+      this.logger.info(`[INFO] Fetched ${totalPairs} pairs, processing top ${topNewest.length} newest`);
 
       // Get pairs created within MAX_TOKEN_AGE_SECONDS (ultra-strict time filtering)
       const maxAgeMs = this.maxTokenAgeSeconds * 1000;
       const cutoffTime = Date.now() - maxAgeMs;
-      const recentPairs = solanaPairs.filter(pair => {
+      let sentCount = 0;
+      let tooOldCount = 0;
+      
+      const recentPairs = topNewest.filter(pair => {
         const tokenCreatedAt = (pair.pairCreatedAt || 0) * 1000;
-        const tokenAgeSeconds = (Date.now() - tokenCreatedAt) / 1000;
+        const tokenAgeSeconds = Math.floor((Date.now() - tokenCreatedAt) / 1000);
         const isRecent = tokenCreatedAt >= cutoffTime;
         
         if (this.debugMode) {
-          this.logger.info(`Token ${pair.baseToken.symbol}: created ${tokenAgeSeconds.toFixed(0)}s ago - ${isRecent ? 'PASS' : 'FILTERED'}`);
+          if (isRecent) {
+            this.logger.info(`[INFO] Token ${pair.baseToken.symbol}: ${tokenAgeSeconds} seconds old ✅ PASS`);
+          } else {
+            this.logger.info(`[INFO] Token ${pair.baseToken.symbol}: ${tokenAgeSeconds} seconds old ❌ TOO OLD (>${this.maxTokenAgeSeconds}s)`);
+            tooOldCount++;
+          }
+        } else {
+          if (!isRecent) {
+            tooOldCount++;
+          }
         }
         
         return isRecent;
@@ -68,13 +87,13 @@ export class DexScreenerService {
         const hasLiquidity = pair.liquidity?.usd !== undefined && pair.liquidity.usd >= this.minLiquidityUsd;
         
         if (this.debugMode && !hasLiquidity) {
-          this.logger.info(`Token ${pair.baseToken.symbol}: filtered out due to low liquidity ($${pair.liquidity?.usd || 0})`);
+          this.logger.info(`[INFO] Token ${pair.baseToken.symbol}: filtered out due to low liquidity ($${pair.liquidity?.usd?.toFixed(2) || 0})`);
         }
         
         return hasLiquidity;
       });
 
-      this.logger.info(`Found ${totalPairs} tokens, ${recentPairs.length} are within last ${this.maxTokenAgeSeconds} seconds, ${liquidPairs.length} meet liquidity requirement ($${this.minLiquidityUsd}+)`);
+      this.logger.info(`[INFO] Found ${liquidPairs.length} tokens within ${this.maxTokenAgeSeconds}s, filtered ${tooOldCount} (too old)`);
       
       return liquidPairs;
     } catch (error) {

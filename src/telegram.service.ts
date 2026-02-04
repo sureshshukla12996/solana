@@ -37,42 +37,36 @@ export class TelegramService {
    */
   private formatTokenMessage(pair: TokenPair): string {
     const lines: string[] = [
-      '🚀 <b>New Solana Token Detected!</b>',
+      '🚀 <b>ULTRA FRESH LAUNCH!</b>',
       '',
       `<b>Token:</b> ${this.escapeHtml(pair.baseToken.name)} (${this.escapeHtml(pair.baseToken.symbol)})`,
       `<b>Contract:</b> <code>${pair.baseToken.address}</code>`,
       '',
-      `<b>Chain:</b> Solana`,
-      `<b>DEX:</b> ${this.capitalizeFirst(pair.dexId)}`,
     ];
-
-    // Add price information if available
-    if (pair.priceUsd) {
-      lines.push(`<b>Price:</b> $${this.formatNumber(parseFloat(pair.priceUsd))}`);
-    }
-
-    // Add liquidity information if available
-    if (pair.liquidity?.usd) {
-      lines.push(`<b>Liquidity:</b> $${this.formatNumber(pair.liquidity.usd)}`);
-    }
-
-    // Add FDV if available
-    if (pair.fdv) {
-      lines.push(`<b>FDV:</b> $${this.formatNumber(pair.fdv)}`);
-    }
 
     // Add creation time with exact seconds display
     if (pair.pairCreatedAt) {
       const tokenCreatedAt = pair.pairCreatedAt * 1000;
       const ageSeconds = Math.floor((Date.now() - tokenCreatedAt) / 1000);
       const timeAgo = this.formatTimeAgo(ageSeconds);
-      lines.push(`<b>Launched:</b> ${timeAgo}`);
+      lines.push(`⚡ <b>Launched ${timeAgo}</b>`);
     }
 
+    // Add price information if available
+    if (pair.priceUsd) {
+      lines.push(`💰 <b>Price:</b> $${this.formatNumber(parseFloat(pair.priceUsd))}`);
+    }
+
+    // Add liquidity information if available
+    if (pair.liquidity?.usd) {
+      lines.push(`💧 <b>Liquidity:</b> $${this.formatNumber(pair.liquidity.usd)}`);
+    }
+
+    // Chain and DEX info
+    lines.push(`⛓️ <b>Solana</b> | ${this.capitalizeFirst(pair.dexId)}`);
+
     lines.push('');
-    lines.push(`<b>🔗 Links:</b>`);
-    lines.push(`📊 <a href="${pair.url}">DexScreener</a>`);
-    lines.push(`🔍 <a href="https://solscan.io/token/${pair.baseToken.address}">Solscan</a>`);
+    lines.push(`🔗 ${pair.url}`);
 
     return lines.join('\n');
   }
@@ -102,17 +96,13 @@ export class TelegramService {
    * Format time ago in exact seconds
    */
   private formatTimeAgo(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds} second${seconds !== 1 ? 's' : ''} ago`;
-    } else if (seconds < 120) {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
+    if (seconds < 10) {
+      return 'just now';
+    } else if (seconds < 60) {
+      return `${seconds} seconds ago`;
     } else {
-      // Should not happen with 2-minute filter, but just in case
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes} minute${minutes !== 1 ? 's' : ''} ${remainingSeconds} second${remainingSeconds !== 1 ? 's' : ''} ago`;
+      // Should not happen with 60-second filter, but handle edge case
+      return `${seconds} seconds ago`;
     }
   }
 
