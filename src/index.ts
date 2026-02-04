@@ -102,11 +102,13 @@ class SolanaTokenBot {
 
       // Process each pair
       let newTokensFound = 0;
+      let alreadySentCount = 0;
       for (const pair of pairs) {
         const tokenAddress = pair.baseToken.address;
 
         // Check if we've already sent this token
         if (this.tokenTracker.hasSent(tokenAddress)) {
+          alreadySentCount++;
           continue;
         }
 
@@ -124,7 +126,7 @@ class SolanaTokenBot {
       }
 
       if (newTokensFound > 0) {
-        logger.info(`✨ Found and sent ${newTokensFound} new token(s)`);
+        logger.info(`[INFO] Sent ${newTokensFound} new token${newTokensFound !== 1 ? 's' : ''}, filtered ${alreadySentCount} (already sent)`);
       } else {
         logger.info('No new tokens to report');
       }

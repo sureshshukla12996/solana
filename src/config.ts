@@ -15,9 +15,9 @@ export interface Config {
 export function loadConfig(): Config {
   const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
   const telegramChatId = process.env.TELEGRAM_CHAT_ID;
-  const checkInterval = parseInt(process.env.CHECK_INTERVAL || '30', 10);
-  const maxTokenAgeSeconds = parseInt(process.env.MAX_TOKEN_AGE_SECONDS || '120', 10);
-  const minLiquidityUsd = parseFloat(process.env.MIN_LIQUIDITY_USD || '100');
+  const checkInterval = parseInt(process.env.CHECK_INTERVAL || '20', 10);
+  const maxTokenAgeSeconds = parseInt(process.env.MAX_TOKEN_AGE_SECONDS || '60', 10);
+  const minLiquidityUsd = parseFloat(process.env.MIN_LIQUIDITY_USD || '50');
   const debugMode = process.env.DEBUG_MODE === 'true';
 
   if (!telegramBotToken) {
