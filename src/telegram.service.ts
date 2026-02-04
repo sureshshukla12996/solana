@@ -98,6 +98,8 @@ export class TelegramService {
   private formatTimeAgo(seconds: number): string {
     if (seconds < 10) {
       return 'just now';
+    } else if (seconds === 1) {
+      return '1 second ago';
     } else if (seconds < 60) {
       return `${seconds} seconds ago`;
     } else {

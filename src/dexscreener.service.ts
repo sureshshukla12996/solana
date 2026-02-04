@@ -58,7 +58,6 @@ export class DexScreenerService {
       // Get pairs created within MAX_TOKEN_AGE_SECONDS (ultra-strict time filtering)
       const maxAgeMs = this.maxTokenAgeSeconds * 1000;
       const cutoffTime = Date.now() - maxAgeMs;
-      let sentCount = 0;
       let tooOldCount = 0;
       
       const recentPairs = topNewest.filter(pair => {
