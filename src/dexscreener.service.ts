@@ -26,9 +26,12 @@ export class DexScreenerService {
   /**
    * Fetch new token pairs from Solana chain
    * This fetches the latest pairs sorted by creation time
+   * Returns up to maxTokensPerBatch tokens within the strict time window
    */
-  async fetchNewSolanaPairs(): Promise<TokenPair[]> {
+  async fetchNewSolanaPairs(maxTokensPerBatch: number = 10): Promise<TokenPair[]> {
     try {
+      const startTime = Date.now();
+      
       // DexScreener API endpoint for new pairs on Solana
       // We use the search endpoint to get recently added tokens
       const response = await this.api.get<DexScreenerResponse>(
@@ -47,36 +50,46 @@ export class DexScreenerService {
         .sort((a, b) => (b.pairCreatedAt || 0) - (a.pairCreatedAt || 0)); // Newest first
 
       const totalPairs = solanaPairs.length;
+      this.logger.info(`📊 Found ${totalPairs} total Solana pairs`);
 
       // Get pairs created within MAX_TOKEN_AGE_SECONDS (ultra-strict time filtering)
       const maxAgeMs = this.maxTokenAgeSeconds * 1000;
       const cutoffTime = Date.now() - maxAgeMs;
       const recentPairs = solanaPairs.filter(pair => {
         const tokenCreatedAt = (pair.pairCreatedAt || 0) * 1000;
-        const tokenAgeSeconds = (Date.now() - tokenCreatedAt) / 1000;
+        const tokenAgeSeconds = Math.floor((Date.now() - tokenCreatedAt) / 1000);
         const isRecent = tokenCreatedAt >= cutoffTime;
         
         if (this.debugMode) {
-          this.logger.info(`Token ${pair.baseToken.symbol}: created ${tokenAgeSeconds.toFixed(0)}s ago - ${isRecent ? 'PASS' : 'FILTERED'}`);
+          this.logger.info(`  Token ${pair.baseToken.symbol}: ${tokenAgeSeconds}s old - ${isRecent ? '✅ PASS' : '❌ FILTERED'}`);
         }
         
         return isRecent;
       });
+
+      this.logger.info(`⏱️  After time filter: ${recentPairs.length} tokens within last ${this.maxTokenAgeSeconds} seconds`);
 
       // Filter by minimum liquidity
       const liquidPairs = recentPairs.filter(pair => {
         const hasLiquidity = pair.liquidity?.usd !== undefined && pair.liquidity.usd >= this.minLiquidityUsd;
         
         if (this.debugMode && !hasLiquidity) {
-          this.logger.info(`Token ${pair.baseToken.symbol}: filtered out due to low liquidity ($${pair.liquidity?.usd || 0})`);
+          this.logger.info(`  Token ${pair.baseToken.symbol}: filtered out due to low liquidity ($${pair.liquidity?.usd || 0})`);
         }
         
         return hasLiquidity;
       });
 
-      this.logger.info(`Found ${totalPairs} tokens, ${recentPairs.length} are within last ${this.maxTokenAgeSeconds} seconds, ${liquidPairs.length} meet liquidity requirement ($${this.minLiquidityUsd}+)`);
+      this.logger.info(`💧 After liquidity filter: ${liquidPairs.length} tokens meet liquidity requirement ($${this.minLiquidityUsd}+)`);
       
-      return liquidPairs;
+      // Limit to max tokens per batch (top 10 newest)
+      const batchPairs = liquidPairs.slice(0, maxTokensPerBatch);
+      
+      if (batchPairs.length > 0) {
+        this.logger.info(`📦 Returning ${batchPairs.length} tokens (max batch size: ${maxTokensPerBatch})`);
+      }
+      
+      return batchPairs;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         this.logger.error(
