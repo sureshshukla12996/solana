@@ -5,11 +5,14 @@ export class TelegramService {
   private bot: TelegramBot;
   private chatId: string;
   private logger: Logger;
+  private minLiquidityUsd: number;
+  private readonly LIQUIDITY_WARNING_MULTIPLIER = 2; // Show warning when liquidity is below 2x minimum
 
-  constructor(botToken: string, chatId: string, logger: Logger) {
+  constructor(botToken: string, chatId: string, logger: Logger, minLiquidityUsd: number = 500) {
     this.bot = new TelegramBot(botToken, { polling: false });
     this.chatId = chatId;
     this.logger = logger;
+    this.minLiquidityUsd = minLiquidityUsd;
   }
 
   /**
@@ -39,40 +42,87 @@ export class TelegramService {
     const lines: string[] = [
       '🚀 <b>New Solana Token Detected!</b>',
       '',
-      `<b>Token:</b> ${this.escapeHtml(pair.baseToken.name)} (${this.escapeHtml(pair.baseToken.symbol)})`,
-      `<b>Contract:</b> <code>${pair.baseToken.address}</code>`,
+      `<b>💎 Token:</b> ${this.escapeHtml(pair.baseToken.name)} (${this.escapeHtml(pair.baseToken.symbol)})`,
+      `<b>📝 Contract:</b> <code>${pair.baseToken.address}</code>`,
       '',
-      `<b>Chain:</b> Solana`,
-      `<b>DEX:</b> ${this.capitalizeFirst(pair.dexId)}`,
     ];
+
+    // Add relative time if available
+    if (pair.pairCreatedAt) {
+      const relativeTime = this.formatRelativeTime(pair.pairCreatedAt);
+      lines.push(`<b>🕐 Launched:</b> ${relativeTime}`);
+    }
 
     // Add price information if available
     if (pair.priceUsd) {
-      lines.push(`<b>Price:</b> $${this.formatNumber(parseFloat(pair.priceUsd))}`);
+      const price = parseFloat(pair.priceUsd);
+      lines.push(`<b>💵 Price:</b> $${this.formatPrice(price)}`);
     }
 
-    // Add liquidity information if available
+    // Add liquidity information with warning for low liquidity
     if (pair.liquidity?.usd) {
-      lines.push(`<b>Liquidity:</b> $${this.formatNumber(pair.liquidity.usd)}`);
+      const liquidityUsd = pair.liquidity.usd;
+      const warningThreshold = this.minLiquidityUsd * this.LIQUIDITY_WARNING_MULTIPLIER;
+      const liquidityWarning = liquidityUsd < warningThreshold ? ' ⚠️' : '';
+      lines.push(`<b>💧 Liquidity:</b> $${this.formatNumber(liquidityUsd)}${liquidityWarning}`);
+      
+      if (liquidityUsd < warningThreshold) {
+        lines.push(`<i>⚠️ Low liquidity - Trade with caution!</i>`);
+      }
     }
 
-    // Add FDV if available
+    // Add FDV/Market Cap if available
     if (pair.fdv) {
-      lines.push(`<b>FDV:</b> $${this.formatNumber(pair.fdv)}`);
-    }
-
-    // Add creation time if available
-    if (pair.pairCreatedAt) {
-      const createdDate = new Date(pair.pairCreatedAt * 1000);
-      lines.push(`<b>Created:</b> ${createdDate.toUTCString()}`);
+      lines.push(`<b>📊 Market Cap:</b> $${this.formatNumber(pair.fdv)}`);
     }
 
     lines.push('');
     lines.push(`<b>🔗 Links:</b>`);
-    lines.push(`📊 <a href="${pair.url}">DexScreener</a>`);
-    lines.push(`🔍 <a href="https://solscan.io/token/${pair.baseToken.address}">Solscan</a>`);
+    lines.push(`• <a href="${pair.url}">DexScreener Chart</a>`);
+    lines.push(`• <a href="https://solscan.io/token/${pair.baseToken.address}">Solscan Explorer</a>`);
+    lines.push(`• <a href="https://dexscreener.com/solana/${pair.pairAddress}">Trading Pair</a>`);
 
     return lines.join('\n');
+  }
+
+  /**
+   * Format relative time (e.g., "5 minutes ago", "2 hours ago")
+   */
+  private formatRelativeTime(timestamp: number): string {
+    const now = Date.now();
+    const createdAtMs = timestamp * 1000;
+    const diffMs = now - createdAtMs;
+
+    // Convert to appropriate unit
+    const seconds = Math.floor(diffMs / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return `${days} day${days > 1 ? 's' : ''} ago`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else if (minutes > 0) {
+      return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Just now';
+    }
+  }
+
+  /**
+   * Format price with appropriate decimals
+   */
+  private formatPrice(price: number): string {
+    if (price < 0.000001) {
+      return price.toExponential(4);
+    } else if (price < 0.01) {
+      return price.toFixed(8);
+    } else if (price < 1) {
+      return price.toFixed(6);
+    } else {
+      return price.toFixed(4);
+    }
   }
 
   /**
@@ -109,10 +159,7 @@ export class TelegramService {
     if (num >= 1e3) {
       return (num / 1e3).toFixed(2) + 'K';
     }
-    if (num < 0.01) {
-      return num.toExponential(4);
-    }
-    return num.toFixed(4);
+    return num.toFixed(2);
   }
 
   /**

@@ -18,16 +18,26 @@ class SolanaTokenBot {
     const config = loadConfig();
     
     // Initialize services
-    this.dexScreener = new DexScreenerService(logger);
+    this.dexScreener = new DexScreenerService(
+      logger, 
+      config.maxTokenAgeHours, 
+      config.minLiquidityUsd,
+      config.debugMode
+    );
     this.telegram = new TelegramService(
       config.telegramBotToken,
       config.telegramChatId,
-      logger
+      logger,
+      config.minLiquidityUsd
     );
     this.tokenTracker = new TokenTracker(logger);
     this.checkInterval = config.checkInterval * 1000; // Convert to milliseconds
 
-    logger.info(`Bot initialized with ${config.checkInterval}s check interval`);
+    logger.info(`Bot initialized with configuration:`);
+    logger.info(`  - Check interval: ${config.checkInterval}s`);
+    logger.info(`  - Max token age: ${config.maxTokenAgeHours} hours`);
+    logger.info(`  - Min liquidity: $${config.minLiquidityUsd}`);
+    logger.info(`  - Debug mode: ${config.debugMode ? 'enabled' : 'disabled'}`);
   }
 
   /**
@@ -90,17 +100,23 @@ class SolanaTokenBot {
       const pairs = await this.dexScreener.fetchNewSolanaPairs();
 
       if (pairs.length === 0) {
-        logger.info('No new tokens found');
+        logger.info('No new tokens found matching criteria');
         return;
       }
 
+      logger.info(`Processing ${pairs.length} token(s)...`);
+
       // Process each pair
       let newTokensFound = 0;
+      let alreadySent = 0;
+      
       for (const pair of pairs) {
         const tokenAddress = pair.baseToken.address;
 
         // Check if we've already sent this token
         if (this.tokenTracker.hasSent(tokenAddress)) {
+          alreadySent++;
+          logger.info(`Skipping ${pair.baseToken.symbol} (already sent)`);
           continue;
         }
 
@@ -120,7 +136,7 @@ class SolanaTokenBot {
       if (newTokensFound > 0) {
         logger.info(`✨ Found and sent ${newTokensFound} new token(s)`);
       } else {
-        logger.info('No new tokens to report');
+        logger.info(`No new tokens to report (${alreadySent} already sent)`);
       }
 
       logger.info(`Total tokens tracked: ${this.tokenTracker.getSentCount()}`);
