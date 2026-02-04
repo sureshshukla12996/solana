@@ -30,8 +30,6 @@ export class DexScreenerService {
    */
   async fetchNewSolanaPairs(maxTokensPerBatch: number = 10): Promise<TokenPair[]> {
     try {
-      const startTime = Date.now();
-      
       // DexScreener API endpoint for new pairs on Solana
       // We use the search endpoint to get recently added tokens
       const response = await this.api.get<DexScreenerResponse>(

@@ -96,14 +96,14 @@ class SolanaTokenBot {
   private async checkForNewTokens(): Promise<void> {
     try {
       const timestamp = new Date().toLocaleTimeString();
-      logger.info(`\n[${ timestamp}] 🔍 Checking DexScreener...`);
+      logger.info(`\n[${timestamp}] 🔍 Checking DexScreener...`);
 
       // Fetch new pairs from DexScreener (already filtered and limited to maxTokensPerBatch)
       const pairs = await this.dexScreener.fetchNewSolanaPairs(this.maxTokensPerBatch);
 
       if (pairs.length === 0) {
-        logger.info(`[${ timestamp}] No new tokens found within criteria`);
-        logger.info(`[${ timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
+        logger.info(`[${timestamp}] No new tokens found within criteria`);
+        logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
         return;
       }
 
@@ -111,16 +111,16 @@ class SolanaTokenBot {
       const newPairs = pairs.filter(pair => !this.tokenTracker.hasSent(pair.baseToken.address));
       const alreadySentCount = pairs.length - newPairs.length;
 
-      logger.info(`[${ timestamp}] Already sent: ${alreadySentCount}, New: ${newPairs.length}`);
+      logger.info(`[${timestamp}] Already sent: ${alreadySentCount}, New: ${newPairs.length}`);
 
       if (newPairs.length === 0) {
-        logger.info(`[${ timestamp}] No new tokens to report`);
-        logger.info(`[${ timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
+        logger.info(`[${timestamp}] No new tokens to report`);
+        logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
         return;
       }
 
       // Send batch of tokens
-      logger.info(`[${ timestamp}] ✅ Sending ${newPairs.length} token(s) to Telegram`);
+      logger.info(`[${timestamp}] ✅ Sending ${newPairs.length} token(s) to Telegram`);
 
       let sentCount = 0;
       let failedCount = 0;
@@ -152,9 +152,9 @@ class SolanaTokenBot {
         }
       }
 
-      logger.info(`[${ timestamp}] 📊 Batch complete: ${sentCount} sent, ${failedCount} failed`);
-      logger.info(`[${ timestamp}] Total tokens tracked: ${this.tokenTracker.getSentCount()}`);
-      logger.info(`[${ timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
+      logger.info(`[${timestamp}] 📊 Batch complete: ${sentCount} sent, ${failedCount} failed`);
+      logger.info(`[${timestamp}] Total tokens tracked: ${this.tokenTracker.getSentCount()}`);
+      logger.info(`[${timestamp}] Next check in ${this.checkInterval / 1000} seconds.\n`);
     } catch (error) {
       logger.error('Error checking for new tokens:', error);
     }
