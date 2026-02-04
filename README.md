@@ -6,10 +6,13 @@ A Node.js bot that monitors DexScreener for newly launched Solana tokens and aut
 
 - 🔍 **Real-time Monitoring**: Continuously monitors DexScreener for new Solana token launches
 - 📱 **Telegram Notifications**: Sends formatted alerts with token details to your Telegram group
-- 🚫 **Duplicate Prevention**: Tracks sent tokens to avoid duplicate notifications
+- 🚫 **Duplicate Prevention**: Tracks sent tokens with timestamps to avoid duplicate notifications
+- ⏱️ **Smart Filtering**: Only shows tokens launched within configurable time window (1-24 hours)
+- 💧 **Liquidity Filter**: Filters out scam tokens with low liquidity (configurable minimum)
 - 🛡️ **Error Handling**: Robust error handling and retry logic for API failures
-- 📊 **Comprehensive Details**: Includes token name, symbol, contract address, liquidity, price, and more
+- 📊 **Comprehensive Details**: Includes token name, symbol, contract address, liquidity, price, relative time, and more
 - ⚙️ **Configurable**: Easy configuration via environment variables
+- 🐛 **Debug Mode**: Optional verbose logging for troubleshooting
 
 ## Prerequisites
 
@@ -43,6 +46,9 @@ A Node.js bot that monitors DexScreener for newly launched Solana tokens and aut
    TELEGRAM_BOT_TOKEN=your_bot_token_here
    TELEGRAM_CHAT_ID=your_chat_id_here
    CHECK_INTERVAL=60
+   MAX_TOKEN_AGE_HOURS=6
+   MIN_LIQUIDITY_USD=500
+   DEBUG_MODE=false
    ```
 
 ## Getting Telegram Credentials
@@ -110,19 +116,18 @@ Once started, the bot will:
 ```
 🚀 New Solana Token Detected!
 
-Token: Example Token (EXT)
-Contract: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU
+💎 Token: Example Token (EXT)
+📝 Contract: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU
 
-Chain: Solana
-DEX: Raydium
-Price: $0.00001234
-Liquidity: $12.5K
-FDV: $1.2M
-Created: Tue, 04 Feb 2025 10:30:00 GMT
+🕐 Launched: 5 minutes ago
+💵 Price: $0.00001234
+💧 Liquidity: $12.50K
+📊 Market Cap: $1.20M
 
 🔗 Links:
-📊 DexScreener
-🔍 Solscan
+• DexScreener Chart
+• Solscan Explorer
+• Trading Pair
 ```
 
 ## Configuration Options
@@ -132,6 +137,9 @@ Created: Tue, 04 Feb 2025 10:30:00 GMT
 | `TELEGRAM_BOT_TOKEN` | Your Telegram bot token from BotFather | - | Yes |
 | `TELEGRAM_CHAT_ID` | Target chat/group ID for notifications | - | Yes |
 | `CHECK_INTERVAL` | How often to check for new tokens (seconds) | 60 | No |
+| `MAX_TOKEN_AGE_HOURS` | Maximum age of tokens to show (1-24 hours) | 6 | No |
+| `MIN_LIQUIDITY_USD` | Minimum liquidity in USD to filter scam tokens | 500 | No |
+| `DEBUG_MODE` | Enable verbose logging (`true` or `false`) | false | No |
 
 ## Project Structure
 
@@ -155,11 +163,16 @@ solana/
 ## How It Works
 
 1. **Monitoring**: The bot polls the DexScreener API every configured interval (default: 60 seconds)
-2. **Filtering**: Filters for Solana tokens that were created in the last 5 minutes
+2. **Filtering**: 
+   - Filters for Solana tokens only
+   - Only includes tokens created within the last N hours (configurable via `MAX_TOKEN_AGE_HOURS`)
+   - Filters out tokens with liquidity below minimum threshold (configurable via `MIN_LIQUIDITY_USD`)
+   - Validates token creation dates (skips invalid or future dates)
 3. **Duplicate Check**: Checks if the token has already been sent using the token tracker
-4. **Notification**: Formats and sends a rich notification to your Telegram group
-5. **Tracking**: Records the token address to prevent duplicate notifications
-6. **Persistence**: Saves sent token addresses to `sent-tokens.json` for persistence across restarts
+4. **Notification**: Formats and sends a rich notification to your Telegram group with relative time
+5. **Tracking**: Records the token address with timestamp to prevent duplicate notifications
+6. **Persistence**: Saves sent token addresses with timestamps to `sent-tokens.json`
+7. **Cleanup**: Automatically removes entries older than 24 hours from tracking
 
 ## Error Handling
 

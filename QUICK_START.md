@@ -46,6 +46,9 @@ Edit `.env`:
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ
 TELEGRAM_CHAT_ID=-1001234567890
 CHECK_INTERVAL=60
+MAX_TOKEN_AGE_HOURS=6
+MIN_LIQUIDITY_USD=500
+DEBUG_MODE=false
 ```
 
 ## Step 5: Install & Run 🎯
@@ -65,14 +68,20 @@ npm start
 
 ### On Startup:
 ```
-[2026-02-04T10:00:00.000Z] [INFO] Bot initialized with 60s check interval
+[2026-02-04T10:00:00.000Z] [INFO] Bot initialized with configuration:
+[2026-02-04T10:00:00.000Z] [INFO]   - Check interval: 60s
+[2026-02-04T10:00:00.000Z] [INFO]   - Max token age: 6 hours
+[2026-02-04T10:00:00.000Z] [INFO]   - Min liquidity: $500
+[2026-02-04T10:00:00.000Z] [INFO]   - Debug mode: disabled
 [2026-02-04T10:00:00.100Z] [INFO] 🚀 Starting Solana DexScreener Token Bot...
 [2026-02-04T10:00:00.500Z] [INFO] ✅ Connected to Telegram as @your_bot_name
 [2026-02-04T10:00:00.600Z] [INFO] Loaded 0 previously sent tokens
 [2026-02-04T10:00:00.700Z] [INFO] 🔍 Checking for new tokens...
-[2026-02-04T10:00:01.200Z] [INFO] Fetched 3 recent Solana pairs
+[2026-02-04T10:00:01.200Z] [INFO] Fetched 50 total pairs from DexScreener
+[2026-02-04T10:00:01.250Z] [INFO] Filtering stats: 0 no timestamp, 0 future dates, 45 too old (>6h), 2 low liquidity (<$500)
+[2026-02-04T10:00:01.300Z] [INFO] After filtering: 3 new token pairs match criteria
 [2026-02-04T10:00:02.000Z] [INFO] ✅ Sent alert for token: NEWTOKEN
-[2026-02-04T10:00:03.500Z] [INFO] ✨ Found and sent 1 new token(s)
+[2026-02-04T10:00:03.500Z] [INFO] ✨ Found and sent 3 new token(s)
 [2026-02-04T10:00:03.600Z] [INFO] ✅ Bot started successfully. Checking every 60s
 ```
 
@@ -80,20 +89,20 @@ npm start
 ```
 🚀 New Solana Token Detected!
 
-Token: Awesome Token (AWSM)
-Contract: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU
+💎 Token: Awesome Token (AWSM)
+📝 Contract: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU
 
-Chain: Solana
-DEX: Raydium
-Price: $0.0001234
-Liquidity: $12.5K
-FDV: $1.23M
-Created: Wed, 04 Feb 2026 10:00:00 GMT
+🕐 Launched: 5 minutes ago
+💵 Price: $0.00012340
+💧 Liquidity: $12.50K
+📊 Market Cap: $1.23M
 
 🔗 Links:
-📊 DexScreener
-�� Solscan
+• DexScreener Chart
+• Solscan Explorer
+• Trading Pair
 ```
+
 
 ## Troubleshooting 🔧
 
